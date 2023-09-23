@@ -50,6 +50,8 @@ pub fn type_equal<Src, Target>() -> bool {
     non_static_type_id::<Src>() == non_static_type_id::<Target>()
 }
 
+// Code by dtolnay in a bincode issue:
+// https://github.com/bincode-org/bincode/issues/665#issue-1903241159
 fn non_static_type_id<T: ?Sized>() -> TypeId {
     trait NonStaticAny {
         fn get_type_id(&self) -> TypeId

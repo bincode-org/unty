@@ -21,3 +21,7 @@ if let Ok(str) = unsafe { unty::<&'a str, &'static str>(input) } {
     // the compiler may now light your PC on fire
 }
 ```
+
+# License
+
+This crate is dual licenced MIT and Apache-2.0, at your own leisure
