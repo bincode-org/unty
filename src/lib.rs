@@ -37,6 +37,7 @@ use core::{any::TypeId, marker::PhantomData, mem};
 pub unsafe fn unty<Src, Target: 'static>(x: Src) -> Result<Target, Src> {
     if type_equal::<Src, Target>() {
         let ptr = &x as *const Src as *const Target;
+        mem::forget(x); // we're going to copy this, so don't run the destructor
         Ok(core::ptr::read(ptr))
     } else {
         Err(x)
@@ -72,4 +73,25 @@ fn non_static_type_id<T: ?Sized>() -> TypeId {
     NonStaticAny::get_type_id(unsafe {
         mem::transmute::<&dyn NonStaticAny, &(dyn NonStaticAny + 'static)>(&phantom_data)
     })
+}
+
+#[test]
+fn test_double_drop() {
+    use core::sync::atomic::{AtomicUsize, Ordering};
+    #[derive(Debug)]
+    struct Ty;
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    impl Drop for Ty {
+        fn drop(&mut self) {
+            COUNTER.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    fn foo<T: core::fmt::Debug>(t: T) {
+        unsafe { unty::<T, Ty>(t) }.unwrap();
+    }
+
+    foo(Ty);
+    assert_eq!(COUNTER.load(Ordering::Relaxed), 1);
 }
