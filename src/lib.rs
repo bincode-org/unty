@@ -1,5 +1,11 @@
 #![no_std]
-//! A crate that allows you to mostly-safely cast one type into another type.
+//! A crate that allows you to untype your types.
+//!
+//! This provides 2 functions:
+//!
+//! [`type_equal`] allows you to check if two types are the same.
+//!
+//! [`unty`] allows you to downcast a generic type into a concrete type.
 //!
 //! This is mostly useful for generic functions, e.g.
 //!
@@ -16,22 +22,20 @@
 //! foo("test"); // will print "it is not an u8"
 //! ```
 //!
-//! This operation is still unsafe because it allows you to extend lifetimes. There currently is not a way to prevent this
+//! Note that both of these functions may give false positives if both types have lifetimes. There currently is not a way to prevent this. See [`type_equal`] for more information.
 //!
 //! ```no_run
 //! # fn foo<'a>(input: &'a str) {
 //! # use unty::*;
+//! assert!(type_equal::<&'a str, &'static str>()); // these are not actually the same
 //! if let Ok(str) = unsafe { unty::<&'a str, &'static str>(input) } {
-//!     // the compiler may now light your PC on fire
+//!     // this will extend the &'a str lifetime to be &'static, which is not allowed.
+//!     // the compiler may now light your PC on fire.
 //! }
 //! # }
 //! ```
 
-use core::{
-    any::TypeId,
-    marker::PhantomData,
-    mem::{self, ManuallyDrop},
-};
+use core::{any::TypeId, marker::PhantomData, mem};
 
 /// Untypes your types. For documentation see the root of this crate.
 ///
@@ -40,17 +44,38 @@ use core::{
 /// This should not be used with types with lifetimes.
 pub unsafe fn unty<Src, Target: 'static>(x: Src) -> Result<Target, Src> {
     if type_equal::<Src, Target>() {
-        let x = ManuallyDrop::new(x);
+        let x = mem::ManuallyDrop::new(x);
         Ok(mem::transmute_copy::<Src, Target>(&x))
     } else {
         Err(x)
     }
 }
 
-/// Checks to see if the two types are probably equal.
+/// Checks to see if the two types are equal.
 ///
-/// Note that this may give false positives if any of the types have lifetimes.
-pub fn type_equal<Src, Target>() -> bool {
+/// ```
+/// # use unty::type_equal;
+/// assert!(type_equal::<u8, u8>());
+/// assert!(!type_equal::<u8, u16>());
+///
+/// fn is_string<T>(_t: T) -> bool {
+///     type_equal::<T, String>()
+/// }
+///
+/// assert!(is_string(String::new()));
+/// assert!(!is_string("")); // `&'static str`, not `String`
+/// ```
+///
+/// Note that this may give false positives if both of the types have lifetimes. Currently it is not possible to determine the difference between `&'a str` and `&'b str`.
+///
+/// ```
+/// # use unty::type_equal;
+/// # fn foo<'a, 'b>(a: &'a str, b: &'b str) {
+/// assert!(type_equal::<&'a str, &'b str>()); // actual different types, this is not safe to transmute
+/// # }
+/// # foo("", "");
+/// ```
+pub fn type_equal<Src: ?Sized, Target: ?Sized>() -> bool {
     non_static_type_id::<Src>() == non_static_type_id::<Target>()
 }
 
