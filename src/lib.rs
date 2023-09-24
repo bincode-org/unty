@@ -35,11 +35,7 @@
 //! # }
 //! ```
 
-use core::{
-    any::TypeId,
-    marker::PhantomData,
-    mem::{self, ManuallyDrop},
-};
+use core::{any::TypeId, marker::PhantomData, mem};
 
 /// Untypes your types. For documentation see the root of this crate.
 ///
@@ -48,7 +44,7 @@ use core::{
 /// This should not be used with types with lifetimes.
 pub unsafe fn unty<Src, Target: 'static>(x: Src) -> Result<Target, Src> {
     if type_equal::<Src, Target>() {
-        let x = ManuallyDrop::new(x);
+        let x = mem::ManuallyDrop::new(x);
         Ok(mem::transmute_copy::<Src, Target>(&x))
     } else {
         Err(x)
